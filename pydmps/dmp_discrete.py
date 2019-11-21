@@ -76,7 +76,7 @@ class DMPs_discrete(DMPs):
         y_des np.array: the desired trajectory to follow
         """
 
-        return np.copy(y_des[:, -1])
+        return np.copy(y_des[:, :,-1])
 
     def gen_psi(self, x):
         """Generates the activity of the basis functions for a given
@@ -104,9 +104,9 @@ class DMPs_discrete(DMPs):
         self.w = np.zeros((self.n_dmps, self.n_bfs))
         for d in range(self.n_dmps):
             # spatial scaling term
-            k = (self.goal[d] - self.y0[d])
+            k = np.mean(self.goal[d] - self.y0[d])
             for b in range(self.n_bfs):
-                numer = np.sum(x_track * psi_track[:, b] * f_target[:, d])
+                numer = np.sum(x_track * psi_track[:, b] * np.mean(f_target[:,:, d],axis=0))
                 denom = np.sum(x_track**2 * psi_track[:, b])
                 self.w[d, b] = numer / (k * denom)
         self.w = np.nan_to_num(self.w)

@@ -86,44 +86,47 @@ class DMPs(object):
         system parameters that best realize this path.
 
         y_des list/array: the desired trajectories of each DMP
-                          should be shaped [n_dmps, run_time]
+                          should be shaped [n_dmps, run_time] 
+        modified by lagrassa to take in a list of y_des of form [n_trajs, n_dmps, run_time]
         """
 
         # set initial state and goal
+        self.n_trajs = y_des.shape[0]
         if y_des.ndim == 1:
             y_des = y_des.reshape(1, len(y_des))
-        self.y0 = y_des[:, 0].copy()
+        self.y0 = y_des[:,:, 0].copy()
         self.y_des = y_des.copy()
         self.goal = self.gen_goal(y_des)
 
-        self.check_offset()
+        #self.check_offset() #disabling for multi, hopefully our starts won't be too close to the goal
 
         # generate function to interpolate the desired trajectory
         import scipy.interpolate
-        path = np.zeros((self.n_dmps, self.timesteps))
-        x = np.linspace(0, self.cs.run_time, y_des.shape[1])
+        path = np.zeros((self.n_trajs,self.n_dmps, self.timesteps))
+        x = np.linspace(0, self.cs.run_time, y_des.shape[-1])
         for d in range(self.n_dmps):
-            path_gen = scipy.interpolate.interp1d(x, y_des[d])
+            path_gen = scipy.interpolate.interp1d(x, y_des[:,d,:])
             for t in range(self.timesteps):
-                path[d, t] = path_gen(t * self.dt)
+                path[:,d, t] = path_gen(t * self.dt)
         y_des = path
 
         # calculate velocity of y_des
+
         dy_des = np.diff(y_des) / self.dt
         # add zero to the beginning of every row
-        dy_des = np.hstack((np.zeros((self.n_dmps, 1)), dy_des))
+        dy_des = np.concatenate((np.zeros((self.n_trajs,self.n_dmps, 1)), dy_des), axis=2)
 
         # calculate acceleration of y_des
         ddy_des = np.diff(dy_des) / self.dt
         # add zero to the beginning of every row
-        ddy_des = np.hstack((np.zeros((self.n_dmps, 1)), ddy_des))
+        ddy_des = np.concatenate((np.zeros((self.n_trajs,self.n_dmps, 1)), ddy_des), axis=2)
 
-        f_target = np.zeros((y_des.shape[1], self.n_dmps))
+        f_target = np.zeros((self.n_trajs,y_des.shape[-1], self.n_dmps))
         # find the force required to move along this trajectory
         for d in range(self.n_dmps):
-            f_target[:, d] = (ddy_des[d] - self.ay[d] *
-                              (self.by[d] * (self.goal[d] - y_des[d]) -
-                              dy_des[d]))
+            f_target[:,:, d] = (ddy_des[:,d,:] - self.ay[d] *
+                              (self.by[d] * ((np.ones(y_des[:,d,:].T.shape)*self.goal[:,d]).T - y_des[:,d,:]) -
+                              dy_des[:,d,:]))
 
         # efficiently generate weights to realize f_target
         self.gen_weights(f_target)
@@ -136,7 +139,6 @@ class DMPs(object):
             psi_track = self.gen_psi(self.cs.rollout())
             plt.plot(psi_track)
             plt.title('basis functions')
-
             # plot the desired forcing function vs approx
             plt.subplot(212)
             plt.plot(f_target[:,0])
@@ -172,8 +174,12 @@ class DMPs(object):
 
         return y_track, dy_track, ddy_track
 
-    def reset_state(self):
+    def reset_state(self, y0=None, goal=None):
         """Reset the system state"""
+        if y0 is not None:
+            self.y0 = y0
+        if goal is not None:
+            self.goal = goal
         self.y = self.y0.copy()
         self.dy = np.zeros(self.n_dmps)
         self.ddy = np.zeros(self.n_dmps)
