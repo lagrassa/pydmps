@@ -104,7 +104,7 @@ class DMPs_discrete(DMPs):
         self.w = np.zeros((self.n_dmps, self.n_bfs))
         for d in range(self.n_dmps):
             # spatial scaling term
-            k = np.mean(self.goal[d] - self.y0[d])
+            k = np.mean(self.goal[:,d] - self.y0[:,d])
             for b in range(self.n_bfs):
                 numer = np.sum(x_track * psi_track[:, b] * np.mean(f_target[:,:, d],axis=0))
                 denom = np.sum(x_track**2 * psi_track[:, b])
